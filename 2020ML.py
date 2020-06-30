@@ -12,8 +12,9 @@
 
 from cleandata import *
 import pandas as pd
-import os 
+#import os 
 #os.chdir('2020_Summer_ML/Summer_ML/')
+from SVM import *
 
 
 
@@ -33,17 +34,58 @@ class MLEngineer(cleandata):
         """
             Method to predict returns
         """
+        
+        
 
     def opti_stocks(self):
         """
             Method to output optimally selected stocks 
         """
+        indx_rank = np.argsort(ret_predict)
+        security_rank = self.data_test.loc[indx_rank,'permno']
+
 
     def profit_anaysis(self):
         
         """
-            Method to graphaically analyze portfolio returns
+        Function to do performance mesaurement attribution    
         """
+
+
+
+import numpy as np
+
+
+def PMA_analysis(pred_return, real_return):
+    """
+    Function to do performance mesaurement attribution
+    
+    """
+    
+
+
+insample_rmse = self.calc_rmse(train_target,train_fit)
+test_rmse = self.calc_rmse(ret_realized,ret_predict)
+
+ret_predict = lasso.predict(test_data_input)
+train_fit = lasso.predict(train_data_clean)
+ret_realized = self.data_test[self.target].values        
+
+
+
+
+
+indx_rank = np.argsort(ret_predict)
+security_rank = self.data_test.loc[indx_rank,'permno']
+
+insample_rmse = self.calc_rmse(train_target,train_fit)
+test_rmse = self.calc_rmse(ret_realized,ret_predict)
+
+ret_predict = lasso.predict(test_data_input)
+train_fit = lasso.predict(train_data_clean)
+ret_realized = self.data_test[self.target].values  
+
+    
 if __name__ == '__main__':
 #    col_selected = pd.read_excel("selected_column.xlsx")
 #    col_set = set(col_selected['col_name'])

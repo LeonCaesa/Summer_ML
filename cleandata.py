@@ -31,11 +31,12 @@ class cleandata:
             param: seletec_clumns, a set of columns specified by the user, default is using all the data
         """
         if small_sample:
-            raw_data = raw_data.iloc[-1000:,:]
+            raw_data = raw_data.iloc[-5000:,:]
         
         self.fill_in_method = method
-
-
+        
+        raw_data = raw_data.dropna(how='all',axis=1)
+        
         if selected_columns is not None:
             try:
                 self.raw_data = raw_data[selected_columns]
@@ -52,48 +53,60 @@ class cleandata:
     def get_float_factor(self):
         
         """
-            Method to get continues predictive factors
+            Method to get continuous predictive factors
         """
-        
-        self.time_format()
+
         non_float = self.raw_data.dtypes[self.raw_data.dtypes !=
                                  'float64'].index                         
-        data_float = self.raw_data.drop(non_float, axis=1)        
-        self.data_float = data_float.dropna(how='any', axis=1)
-        return self.data_float        
+        self.data_float = self.raw_data.drop(non_float, axis=1)        
+        return self.data_float     
+    def get_category_factor(self):
+        """
+            Method to get category/indicator variables
+        """
+        indicator_flag = self.raw_data.dtypes == 'int64'
         
-    def time_format(self):
-        """
-            Method to modify sas formatted data into python
-        """
-        self.raw_data['Date'] = pd.to_timedelta(
-            self.raw_data['DATE'], unit='D') + pd.datetime(1960, 1, 1)
+        data_indicator = self.raw_data.loc[:,indicator_flag]
+        
+        self.data_indicator = data_indicator
+        
+        return data_indicator
+                
 
     def fill_in_missing(self, method='mean'):
         """
-            Method to fill in missing data by using method
+            Method to fill in missing continuous data by using fill in method defined by the user
         """
         if self.fill_in_method == 'mean':
 
-            self.raw_data.fillna(self.raw_data.mean(), inplace=True)
+            self.data_float.fillna(self.data_float.mean(), inplace=True)
             
         elif self.fill_in_method == 'median':
 
-            self.raw_data.fillna(self.raw_data.median(), inplace=True)
+            self.data_float.fillna(self.data_float.median(), inplace=True)
             
+        
+    def cap_inf(self):
+        """
+            Method to cap data outside of 3 sigma to infinity
+            
+            currently implemented to drop the infinity data as there are only two
+        """
+        self.get_float_factor()
+        self.data_float = self.data_float.loc[:, np.sum(np.isinf(self.data_float))==0]
+
+        
             
     def calc_vif(self, show_dist=False):
         """
             Method to calculate varaince inflation factors
         """
-        self.time_format()
 
-        data_float = self.get_float_factor()
         
         vif = pd.DataFrame()
         vif["VIF Factor"] = [variance_inflation_factor(
-            data_float.values, i) for i in range(data_float.shape[1])]
-        vif["features"] = data_float.columns
+            self.data_float.values, i) for i in range(self.data_float.shape[1])]
+        vif["features"] = self.data_float.columns
         
         return vif
     
@@ -102,22 +115,24 @@ class cleandata:
             Method to drop indicator variables that have missing data (implemented since fill_in_method doesn't apply for indicator variables)
         """
 
-        indx_null_indicator = np.isnan(self.raw_data["rd"])
-        self.raw_data = self.raw_data.loc[~indx_null_indicator, :].reset_index(
-            drop=True)
-
+        self.get_category_factor()
+        self.data_indicator.dropna(how='any', axis=1)
+        
     def __main__(self):
 
-        self.time_format()
-        print('time formart correction completed')
-
+        # cleanining for category variables
         self.del_missing_indicators()
-        print('missing indicator variables deleted')
+        print('missing indicator variables deleted')        
 
+        
+        self.cap_inf()
+        print('continous variables containing infinity deleted')        
+        
+        # cleanining for continuous variables        
         self.fill_in_missing()
-        print('missing value filled in with ' + str(self.fill_in_method) + '')
+        print('missing continuous variables filled in with ' + str(self.fill_in_method) + '')
 
-        return self.raw_data
+#        return self.raw_data
 
 if __name__ == '__main__':
     col_selected = pd.read_excel("selected_column.xlsx")
@@ -125,15 +140,18 @@ if __name__ == '__main__':
     
     
     
-    raw_data = pd.read_sas('rpsdata_rfs.sas7bdat')
-    df = cleandata(raw_data, selected_columns=col_set, small_sample=True)
-    clean_data = df.__main__()
+    raw_data = pd.read_csv('constituents_2013_fund_tech.csv')
+    clean_data = cleandata(raw_data, method = 'median', small_sample = True)
+    clean_data.__main__()
+
 
     # To show vif distribution
-    vif_df = df.calc_vif()
-    vif_df.plot.density()
-
-
+    vif_df = clean_data.calc_vif()    
+    vif_inf_flags = np.isinf(vif_df['VIF Factor'])
+    vif_df.loc[vif_inf_flags==False,:].plot.density()
+    
+    
+    
 
 
 
