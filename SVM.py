@@ -9,12 +9,13 @@
 """
 import matplotlib.pyplot as plt
 from sklearn import svm
-
+from sklearn.model_selection import GridSearchCV
+from cleandata import *
 class SVM_Machine:
     """
     SVM machine class
     """
-    def __init__(self, train_x, train_y, test_x, test_y):
+    def __init__(self, train_x, train_y, test_x, test_y, Tunning_Cs=[0.001, 0.01, 0.1, 1, 10]):
         """
         SVM machine init class
 
@@ -27,12 +28,12 @@ class SVM_Machine:
         param: test_y, np.array of testing_labels     
 
         """        
-
+        self.Cs = Tunning_Cs
         self.train_x = train_x
         self.train_y = train_y
         self.test_x = test_x        
         self.test_y = test_y
-        self.model = svm.SVR(kernel='rbf')
+        self.model = svm.SVR(kernel='rbf', gamma='auto')
         
     def training(self):
         """
@@ -40,6 +41,17 @@ class SVM_Machine:
         """
         self.model.fit(self.train_x, self.train_y)
         
+    def tunning(self, nfolds=5):        
+        """
+            Function to hyper tunning the parameter C
+        """
+        Cs = self.Cs
+        param_grid = {'C': Cs}
+        grid_search = GridSearchCV(self.model, param_grid, cv=nfolds)
+        grid_search.fit(self.train_x, self.train_y)
+        
+        self.model.C = grid_search.best_params_['C']
+        return grid_search.best_params_
         
         
     def predict(self):
@@ -54,30 +66,35 @@ from sklearn.model_selection import train_test_split
     
 if __name__ == '__main__':
     
-    raw_data = pd.read_csv("data/constituents_2013_fund_tech.csv")
-    df = MLEngineer(raw_data, 40, 20, 1, small_sample= True)
-    clean_data = df.__main__()
+    raw_data = pd.read_csv("constituents_2013_fund_tech.csv")
+    clean_data = cleandata(raw_data, 'median', small_sample= True)
+    clean_data.__main__()
+    
+    clean_data=clean_data.data_float
+    
+    y = clean_data['ret']
+    x = clean_data.drop(['ret'], axis=1)
+    
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.1)    
+    
+    model = SVM_Machine(x_train, y_train, x_test, y_test, Tunning_Cs=[0.001, 0.01, 0.1, 1, 10])    
+    model.tunning()        
+    model.training()    
+    y_hat = model.predict()
+    
+    plt.plot(range(len(y_hat)), y_hat, label='predict')
+    
+#    plt.plot(range(len(y_hat)) , y_train, label='Real')    
+    plt.plot(range(len(y_hat)) , y_test, label='Real')    
+    
+    plt.legend()
 
+
+"""
     flags = (clean_data.dtypes == 'float64') | (clean_data.dtypes == 'int64')
     
     clean_data = clean_data.loc[:,flags]
     clean_data = clean_data.dropna(axis=1)
     
     clean_data = clean_data.loc[:, np.sum(np.isinf(clean_data))==0]
-    
-    
-    y = clean_data['ret']
-    x = clean_data.drop(['ret'], axis=1)
-    
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.1)    
-    model = SVM_Machine(x_train, y_train, x_train, y_train)
-    
-    model.training()
-    
-    y_hat = model.predict()
-    
-    plt.plot(range(len(y_hat)), y_hat, label='predict')
-    
-    plt.plot(range(len(y_hat)) , y_train, label='Real')    
-    
-    plt.legend()
+"""

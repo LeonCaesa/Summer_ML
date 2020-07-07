@@ -15,6 +15,7 @@ import pandas as pd
 import numpy as np
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 import seaborn as sns
+
 sns.set(color_codes=True)
 
 
@@ -72,6 +73,12 @@ class cleandata:
         
         return data_indicator
                 
+    def get_clean_data(self):
+        """
+            Method to aggregate all claen data
+        """
+        self.clean_data = pd.concat([self.data_indicator,self.data_float, self.raw_data['DATE']],axis=1)
+        
 
     def fill_in_missing(self, method='mean'):
         """
@@ -95,7 +102,12 @@ class cleandata:
         self.get_float_factor()
         self.data_float = self.data_float.loc[:, np.sum(np.isinf(self.data_float))==0]
 
-        
+    def correct_date(self):
+        """
+            Method to correct date into pandas dt64 format
+        """
+        if self.raw_data['DATE'].dtypes=='O':
+            self.raw_data['DATE'] = pd.to_datetime(self.raw_data['DATE'], format = '%Y-%m').dt.to_period('M')
             
     def calc_vif(self, show_dist=False):
         """
@@ -119,7 +131,10 @@ class cleandata:
         self.data_indicator.dropna(how='any', axis=1)
         
     def __main__(self):
-
+        
+        self.correct_date()
+        print('date format corrected')        
+        
         # cleanining for category variables
         self.del_missing_indicators()
         print('missing indicator variables deleted')        
