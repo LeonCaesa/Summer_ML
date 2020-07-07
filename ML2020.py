@@ -57,7 +57,7 @@ class MLEngineer(cleandata):  # analysis:ignore
 
         model = self.model(self.x_train, self.y_train,
                            self.x_test, self.y_test)
-#        model.tunning()
+        model.tunning()
         model.training()
         y_hat = model.predict()
 
@@ -112,14 +112,14 @@ class MLEngineer(cleandata):  # analysis:ignore
                 
         '''Check if looking back period has gone out of range.'''
         if time_start not in self.date_list:
-            print("Invalid start date, please enter a valid date. ")
+            raise SystemExit("Invalid start date, please enter a valid date. ")
 
         '''Check if looking ahead period has gone out of range.'''
         if time_end not in self.date_list:
-            print("Invalid end date, please enter a valid date. ")
-
+            raise SystemExit("Invalid end date, please enter a valid date. ")
+  
         return_list = []                
-        time_step = time_start
+        time_step = time
         
         while time_step != time_end:
             print(time_step)                
@@ -191,9 +191,7 @@ if __name__ == '__main__':
     ML_object = MLEngineer(raw_data, num_stocks=40,
                            trading_window = 12, algorithm='SVM', small_sample=False)
     ML_object.data_processing()
-    
-    
-    
+       
     time_list =['2014-10-01', '2018-12-01']
     returns_long = ML_object.profit_construct(time_list, strategy ='long_equal_weighted')
     
