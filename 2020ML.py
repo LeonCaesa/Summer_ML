@@ -31,13 +31,22 @@ class MLEngineer(cleandata):  # analysis:ignore
 
         cleandata.__init__(self, raw_data, method,
                            selected_columns, small_sample)  # analysis:ignore
-
         self.num_stocks = num_stocks
         self.trading_window = trading_window
         if algorithm == 'SVM':
             self.model = SVM_Machine  # analysis:ignore
         self.descriptive = ['Unnamed: 0', 'permno', 'gvkey', 'fyear']
 
+    def data_processing(self):
+        """
+            Method to clean data
+        """
+        
+        self.__main__()
+        self.get_clean_data()
+        self.date_list = self.clean_data.DATE.unique()
+        
+        
     def return_prediction(self, time_step):
         """
             Method to predict returns
@@ -48,38 +57,31 @@ class MLEngineer(cleandata):  # analysis:ignore
 
         model = self.model(self.x_train, self.y_train,
                            self.x_test, self.y_test)
-        model.tunning()
+#        model.tunning()
         model.training()
         y_hat = model.predict()
 
         return y_hat, self.y_test.values
 
     def split_date(self, time_step):
-        '''Set looking backward dataset/train dataset.'''
+        """
+            Method to split data on specific date into training and testing
+        """
 
         month_of_looking_back = self.trading_window
-        time = pd.to_datetime(time_step).to_period('M')
+        time = time_step
         time_train_start = time - month_of_looking_back
         time_test_end = time + 1
 
-        self.get_clean_data()
         dataset = self.clean_data
-
-        date_list = dataset.DATE.unique()
-
-        '''Check if looking back period has gone out of range.'''
-        if time_train_start not in date_list:
-            print("Invalid date, please enter a valid date. ")
-
-        '''Check if looking ahead period has gone out of range.'''
-        if time_test_end not in date_list:
-            print("Invalid date, please enter a valid date. ")
 
         train = dataset.loc[(dataset['DATE'] > time_train_start)
                             & (dataset['DATE'] <= time)]
         test = dataset.loc[dataset['DATE'] == time_test_end]
 
         '''Drop gvkeys, date and all other irrelevant columns.'''
+        self.tickers = test['permno'].values
+        
         x_train = train.drop(self.descriptive + ['RET'] + ['DATE'], axis=1)
         y_train = train['RET']
         x_test = test.drop(self.descriptive + ['RET'] + ['DATE'], axis=1)
@@ -87,26 +89,69 @@ class MLEngineer(cleandata):  # analysis:ignore
 
         return x_train, y_train, x_test, y_test
 
-    def opti_stocks(self):
+    def opti_stocks(self, time_step):
         """
             Method to output optimally selected stocks 
         """
-        y_hat, y_test = self.return_prediction()
+        y_hat, y_test = self.return_prediction(time_step)
 
         indx_rank = np.argsort(y_hat)
 
-        portfoli_permno = self.x_test.iloc[indx_rank[-self.num_stocks:]]['permno']
+        portfoli_permno = self.tickers[indx_rank[-self.num_stocks:]]
 
-        return portfoli_permno.values
+        return portfoli_permno, indx_rank
 
-    def profit_anaysis(self):
+    def profit_construct(self, time_list, strategy):
         """
-        Function to do performance mesaurement attribution    
+            Method to do performance mesaurement attribution    
         """
-        port_id = set(self.opti_stocks())
 
-        self.x_test['permno'][port_id]
+        time = pd.to_datetime(time_list[0]).to_period('M')
+        time_start = time - self.trading_window
+        time_end = pd.to_datetime(time_list[1]).to_period('M') + 1
+                
+        '''Check if looking back period has gone out of range.'''
+        if time_start not in self.date_list:
+            print("Invalid start date, please enter a valid date. ")
 
+        '''Check if looking ahead period has gone out of range.'''
+        if time_end not in self.date_list:
+            print("Invalid end date, please enter a valid date. ")
+
+        return_list = []                
+        time_step = time_start
+        
+        while time_step != time_end:
+            print(time_step)                
+            port_id, indx_rank = self.opti_stocks(time_step)
+                
+            if strategy == 'long_equal_weighted':            
+                return_list.append(self.y_test.iloc[indx_rank[-self.num_stocks:]].mean())
+            if strategy == 'short_equal_weighted':            
+                return_list.append(self.y_test.iloc[indx_rank[:self.num_stocks]].mean())
+            time_step += 1
+        return return_list
+
+    def return_plot(self, return_list):
+        """
+            Method to generate return density plot and cumulative return trace plot
+        """
+        return_series = np.array(return_list)
+        cumulative_ret = (return_series + 1).cumprod()              
+        plt.plot(cumulative_ret, label='return')
+        plt.xlabel('time_step')
+        plt.ylabel('returns')
+        plt.title('Cumulative Return Plot')
+        plt.show()
+        
+        
+        sns.distplot(return_series)
+        plt.title('Return Distribution Plot')       
+        plt.show()
+       # self.cumulative_ret = cumulative_ret
+        
+      #  self.cumulative_ret = return_series 
+                        
     def calc_sharpe_ratio(self):
         shortrate_data = pd.read_excel("macro_data.xlsx", "short_rate")
         shortrate_data = shortrate_data[::-1].reset_index(drop=True)
@@ -144,31 +189,18 @@ if __name__ == '__main__':
 
     raw_data = pd.read_csv("constituents_2013_fund_tech.csv")
     ML_object = MLEngineer(raw_data, num_stocks=40,
-                           trading_window=30, algorithm='SVM', small_sample=False)
-    ML_object.__main__()
+                           trading_window = 12, algorithm='SVM', small_sample=False)
+    ML_object.data_processing()
+    
+    
+    
+    time_list =['2014-10-01', '2018-12-01']
+    returns_long = ML_object.profit_construct(time_list, strategy ='long_equal_weighted')
+    
+    
+    ML_object.return_plot(returns_long)
+    
+    returns_short = - np.array(ML_object.profit_construct(time_list, strategy ='short_equal_weighted'))
 
-    self = ML_object
-    port_id = ML_object.opti_stocks()
-
-    # To show vif distribution
-    vif_df = ML_object.calc_vif()
-    vif_df.plot.density()
-
-
-insample_rmse = self.calc_rmse(train_target, train_fit)
-test_rmse = self.calc_rmse(ret_realized, ret_predict)
-
-ret_predict = lasso.predict(test_data_input)
-train_fit = lasso.predict(train_data_clean)
-ret_realized = self.data_test[self.target].values
-
-
-indx_rank = np.argsort(ret_predict)
-security_rank = self.data_test.loc[indx_rank, 'permno']
-
-insample_rmse = self.calc_rmse(train_target, train_fit)
-test_rmse = self.calc_rmse(ret_realized, ret_predict)
-
-ret_predict = lasso.predict(test_data_input)
-train_fit = lasso.predict(train_data_clean)
-ret_realized = self.data_test[self.target].values
+    ML_object.return_plot(returns_short)
+    
