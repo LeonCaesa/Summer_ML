@@ -150,8 +150,8 @@ class cleandata:
 #        return self.raw_data
 
 if __name__ == '__main__':
-    col_selected = pd.read_excel("selected_column.xlsx")
-    col_set = set(col_selected['col_name'])
+#    col_selected = pd.read_excel("selected_column.xlsx")
+#    col_set = set(col_selected['col_name'])
     
     
     
@@ -165,6 +165,9 @@ if __name__ == '__main__':
     vif_inf_flags = np.isinf(vif_df['VIF Factor'])
     vif_df.loc[vif_inf_flags==False,:].plot.density()
     
+    clean_data.get_clean_data()
+    
+    clean_data.clean_data.groupby('DATE').count()['ret'].plot()
     
     
 

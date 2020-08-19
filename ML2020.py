@@ -15,7 +15,7 @@ import pandas as pd
 from SVM import *  # analysis:ignore
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-
+from sklearn.mixture import GaussianMixture as GM
 
 class MLEngineer(cleandata):  # analysis:ignore
     def __init__(self, raw_data, num_stocks, trading_window, algorithm, method='mean', selected_columns=None, small_sample=False):
@@ -57,7 +57,7 @@ class MLEngineer(cleandata):  # analysis:ignore
 
         model = self.model(self.x_train, self.y_train,
                            self.x_test, self.y_test)
-        model.tunning()
+        #model.tunning()
         model.training()
         y_hat = model.predict()
 
@@ -192,6 +192,33 @@ if __name__ == '__main__':
                            trading_window = 12, algorithm='SVM', small_sample=False)
     ML_object.data_processing()
        
+#    import matplotlib.ticker as plticker
+#    loc = plticker.MultipleLocator(base=3.0) # this locator puts ticks at regular intervals
+#    fig, ax = plt.subplots(figsize=(10,10))
+#    ax.xaxis.set_major_locator(loc)
+#    ax.plot(ML_object.date_list.strftime('%Y-%m'), ML_object.clean_data.groupby('DATE').count()['ret'].values)
+#    plt.xticks(rotation=45)
+#    plt.ylabel('# Obs (# Company have data at time step)')
+##
+#
+#    plt.subplots(figsize=(10,10))
+##    raw_data = pd.read_sas('/Users/caesa/Desktop/Research/Machine Learning/ML in Math Finance MK/2018/raw_data.sas7bdat')
+#    raw_data = pd.read_sas('/Users/caesa/Desktop/Research/Machine Learning/ML in Math Finance MK/2020/Summer_ML/rpsdata_rfs.sas7bdat')
+#    a = raw_data.groupby('DATE').count()['RET']
+#    raw_data_2018 = pd.read_sas('/Users/caesa/Desktop/Research/Machine Learning/ML in Math Finance MK/2018/raw_data.sas7bdat')
+#    b = raw_data_2018.groupby('DATE').count()['RET']
+#    
+#    raw_data.groupby('DATE').count()['RET'].plot()
+#    raw_data_2018.groupby('DATE').count()['RET'].plot()
+#    
+#    
+#    for i in a.index:
+#        print(i)
+#        print(b.loc[i])
+#        print(a.loc[i])
+        
+    
+    
     time_list =['2014-10-01', '2018-12-01']
     returns_long = ML_object.profit_construct(time_list, strategy ='long_equal_weighted')
     
