@@ -15,10 +15,27 @@ import pandas as pd
 from SVM import *  # analysis:ignore
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-from sklearn.mixture import GaussianMixture as GM
+from sklearn.mixture import BayesianGaussianMixture as BGM
+from LSTM import *
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from cycler import cycler
+
+def one_step_function(raw_data, param_dict):
+    
+    ML_object = MLEngineer(raw_data, num_stocks = param_dict['num_stocks'],
+                       trading_window = param_dict['trading_window'], algorithm = param_dict['algorithm'], small_sample = False, method = param_dict['fill_in_method'], pca = param_dict['pca'])
+    ML_object.data_processing()
+    
+    returns = ML_object.profit_construct(param_dict['time_list'], strategy = param_dict['strategy'])
+    
+    ML_object.return_plot(returns)
+    
+    return ML_object
+
 
 class MLEngineer(cleandata):  # analysis:ignore
-    def __init__(self, raw_data, num_stocks, trading_window, algorithm, method='mean', selected_columns=None, small_sample=False):
+    def __init__(self, raw_data, num_stocks, trading_window, algorithm, method='mean', selected_columns=None, small_sample=False, pca =False):
         """
             Method to initalize Machine Learning Algorithm Object,
             param: raw_data, raw data outputted from sas as pandas dataframe, must have columns Date in sas format
@@ -35,13 +52,17 @@ class MLEngineer(cleandata):  # analysis:ignore
         self.trading_window = trading_window
         if algorithm == 'SVM':
             self.model = SVM_Machine  # analysis:ignore
+        if algorithm == 'LSTM':
+            self.model = LSTM_Model  # analysis:ignore            
         self.descriptive = ['Unnamed: 0', 'permno', 'gvkey', 'fyear']
+        self.count =0 
 
+        self.pca=pca
+        
     def data_processing(self):
         """
             Method to clean data
         """
-        
         self.__main__()
         self.get_clean_data()
         self.date_list = self.clean_data.DATE.unique()
@@ -51,17 +72,65 @@ class MLEngineer(cleandata):  # analysis:ignore
         """
             Method to predict returns
         """
+        
+        self.x_train, self.y_train, self.x_test, self.y_test = self.split_date(time_step)
 
-        self.x_train, self.y_train, self.x_test, self.y_test = self.split_date(
-            time_step)
+        if self.pca:
+            self.x_train, self.y_train, self.x_test, self.y_test = self.PCA(time_step)
+    
+        self.return_clustering(time_step)
 
-        model = self.model(self.x_train, self.y_train,
-                           self.x_test, self.y_test)
-        #model.tunning()
-        model.training()
-        y_hat = model.predict()
+        y_hat = self.clustering.predict(self.x_test).copy()
+        for c in set(self.clustering.predict(self.x_test)):
 
+            flag_train = self.clustering.predict(self.x_train)==c
+            flag_test =  self.clustering.predict(self.x_test)==c
+            self.x_train.loc[flag_train]
+            self.y_train.loc[flag_train]            
+            model = self.model(self.x_train.loc[flag_train],self.y_train.loc[flag_train], self.x_test[flag_test], self.y_test[flag_test])
+            #model.tunning()
+            model.training()            
+            y_hat[flag_test] = model.predict()
+                      
         return y_hat, self.y_test.values
+
+    def return_clustering(self, time_step, n_clusters = 10):
+        
+        
+        c_model = BGM(n_clusters, covariance_type='diag').fit(self.x_train)    
+        
+        self.clustering = c_model
+
+
+        if self.count % self.trading_window  == 0:
+            X_principal = pd.DataFrame(self.PCA(time_step, 2)[0]) 
+            X_principal.columns = ['P1', 'P2']
+            X_principal['clusters'] = self.clustering.predict(self.x_train)
+            sns.pairplot(x_vars=["P1"], y_vars=["P2"], data=X_principal, hue="clusters", size=5)
+            plt.show()
+        self.count+=1
+
+        
+
+    def PCA(self, time_step, pc=60, verbose = False):
+        '''pc: number of PC components.'''
+ 
+        X_train_set, y_train, X_test_set, y_test = self.split_date(time_step)
+        scaler = StandardScaler().fit(X_train_set)
+        X_train_set = scaler.transform(X_train_set)
+        X_test_set = scaler.transform(X_test_set)
+
+        pca = PCA(n_components=pc, svd_solver='full')
+        pca.fit(X_train_set)
+
+        X_train_set = pca.transform(X_train_set)
+        X_test_set = pca.transform(X_test_set)
+
+        if verbose:
+            print('number of PCs: ', pc)
+            print(sum(pca.explained_variance_ratio_[:pc]))
+        return pd.DataFrame(X_train_set), y_train, pd.DataFrame(X_test_set), y_test
+
 
     def split_date(self, time_step):
         """
@@ -94,9 +163,8 @@ class MLEngineer(cleandata):  # analysis:ignore
             Method to output optimally selected stocks 
         """
         y_hat, y_test = self.return_prediction(time_step)
-
         indx_rank = np.argsort(y_hat)
-
+#        print(y_hat)
         portfoli_permno = self.tickers[indx_rank[-self.num_stocks:]]
 
         return portfoli_permno, indx_rank
@@ -124,13 +192,17 @@ class MLEngineer(cleandata):  # analysis:ignore
         while time_step != time_end:
             print(time_step)                
             port_id, indx_rank = self.opti_stocks(time_step)
-                
+            temp = (self.y_test + self.y_mean) * self.y_std
+            
             if strategy == 'long_equal_weighted':            
-                return_list.append(self.y_test.iloc[indx_rank[-self.num_stocks:]].mean())
+#                return_list.append(self.y_test.iloc[indx_rank[-self.num_stocks:]].mean())
+                return_list.append(temp.iloc[indx_rank[-self.num_stocks:]].mean())                
             if strategy == 'short_equal_weighted':            
-                return_list.append(self.y_test.iloc[indx_rank[:self.num_stocks]].mean())
+#                return_list.append(self.y_test.iloc[indx_rank[:self.num_stocks]].mean())
+                return_list.append(temp.iloc[indx_rank[:self.num_stocks]].mean())                
             time_step += 1
-        return return_list
+#        return (np.array(return_list) + self.y_mean)*self.y_std
+        return np.array(return_list) 
 
     def return_plot(self, return_list):
         """
@@ -187,18 +259,12 @@ class MLEngineer(cleandata):  # analysis:ignore
 
 if __name__ == '__main__':
 
-    raw_data = pd.read_csv("constituents_2013_fund_tech.csv")
+    raw_data = pd.read_csv("fun_tech_2013_median.csv")
     ML_object = MLEngineer(raw_data, num_stocks=40,
-                           trading_window = 12, algorithm='SVM', small_sample=False)
+                           trading_window = 12, algorithm='LSTM', small_sample=False, pca =True)
     ML_object.data_processing()
        
-#    import matplotlib.ticker as plticker
-#    loc = plticker.MultipleLocator(base=3.0) # this locator puts ticks at regular intervals
-#    fig, ax = plt.subplots(figsize=(10,10))
-#    ax.xaxis.set_major_locator(loc)
-#    ax.plot(ML_object.date_list.strftime('%Y-%m'), ML_object.clean_data.groupby('DATE').count()['ret'].values)
-#    plt.xticks(rotation=45)
-#    plt.ylabel('# Obs (# Company have data at time step)')
+
 ##
 #
 #    plt.subplots(figsize=(10,10))
@@ -219,13 +285,12 @@ if __name__ == '__main__':
         
     
     
-    time_list =['2014-10-01', '2018-12-01']
+    time_list =['2015-10', '2015-12']
     returns_long = ML_object.profit_construct(time_list, strategy ='long_equal_weighted')
-    
     
     ML_object.return_plot(returns_long)
     
     returns_short = - np.array(ML_object.profit_construct(time_list, strategy ='short_equal_weighted'))
 
     ML_object.return_plot(returns_short)
-    
+

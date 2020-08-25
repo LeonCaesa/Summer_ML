@@ -60,6 +60,8 @@ class cleandata:
         non_float = self.raw_data.dtypes[self.raw_data.dtypes !=
                                  'float64'].index                         
         self.data_float = self.raw_data.drop(non_float, axis=1)        
+    
+           
         return self.data_float     
     def get_category_factor(self):
         """
@@ -73,11 +75,19 @@ class cleandata:
         
         return data_indicator
                 
-    def get_clean_data(self):
+    def get_clean_data(self, standardrize= True):
         """
             Method to aggregate all claen data
         """
+        
+        if standardrize:
+           self.y_mean = np.mean(self.data_float['RET'])
+           self.y_std = np.std(self.data_float['RET'])
+           self.data_float = (self.data_float - self.data_float.mean())/self.data_float.std()
+           
         self.clean_data = pd.concat([self.data_indicator,self.data_float, self.raw_data['DATE']],axis=1)
+        
+        
         
 
     def fill_in_missing(self, method='mean'):
@@ -130,6 +140,7 @@ class cleandata:
         self.get_category_factor()
         self.data_indicator.dropna(how='any', axis=1)
         
+
     def __main__(self):
         
         self.correct_date()
@@ -147,6 +158,7 @@ class cleandata:
         self.fill_in_missing()
         print('missing continuous variables filled in with ' + str(self.fill_in_method) + '')
 
+
 #        return self.raw_data
 
 if __name__ == '__main__':
@@ -155,15 +167,17 @@ if __name__ == '__main__':
     
     
     
-    raw_data = pd.read_csv('constituents_2013_fund_tech.csv')
+    raw_data = pd.read_csv('fun_tech_2013_median.csv')
     clean_data = cleandata(raw_data, method = 'median', small_sample = True)
     clean_data.__main__()
 
 
-    # To show vif distribution
-    vif_df = clean_data.calc_vif()    
-    vif_inf_flags = np.isinf(vif_df['VIF Factor'])
-    vif_df.loc[vif_inf_flags==False,:].plot.density()
+
+#    raw_data2 = pd.read_csv('fun_tech_2013_median.csv')
+#    # To show vif distribution
+#    vif_df = clean_data.calc_vif()    
+#    vif_inf_flags = np.isinf(vif_df['VIF Factor'])
+#    vif_df.loc[vif_inf_flags==False,:].plot.density()
     
     clean_data.get_clean_data()
     
