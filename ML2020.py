@@ -83,8 +83,8 @@ class MLEngineer(cleandata):  # analysis:ignore
         y_hat = self.clustering.predict(self.x_test).copy()
         for c in set(self.clustering.predict(self.x_test)):
 
-            flag_train = self.clustering.predict(self.x_train)==c
-            flag_test =  self.clustering.predict(self.x_test)==c
+            flag_train = self.clustering.predict(self.x_train) == c
+            flag_test =  self.clustering.predict(self.x_test) == c
             self.x_train.loc[flag_train]
             self.y_train.loc[flag_train]            
             model = self.model(self.x_train.loc[flag_train],self.y_train.loc[flag_train], self.x_test[flag_test], self.y_test[flag_test])
@@ -112,7 +112,7 @@ class MLEngineer(cleandata):  # analysis:ignore
 
         
 
-    def PCA(self, time_step, pc=60, verbose = False):
+    def PCA(self, time_step, pc = 60, verbose = False):
         '''pc: number of PC components.'''
  
         X_train_set, y_train, X_test_set, y_test = self.split_date(time_step)
@@ -192,7 +192,7 @@ class MLEngineer(cleandata):  # analysis:ignore
         while time_step != time_end:
             print(time_step)                
             port_id, indx_rank = self.opti_stocks(time_step)
-            temp = (self.y_test + self.y_mean) * self.y_std
+            temp = (self.y_test * self.y_std) + self.y_mean
             
             if strategy == 'long_equal_weighted':            
 #                return_list.append(self.y_test.iloc[indx_rank[-self.num_stocks:]].mean())
