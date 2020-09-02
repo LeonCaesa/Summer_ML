@@ -1,2 +1,6 @@
 *.sas7bdat
 *.csv
+*.png
+*.PNG
+*.sh.*
+
